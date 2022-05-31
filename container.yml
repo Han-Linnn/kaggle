@@ -1,0 +1,37 @@
+name: visualization
+version: 5.0.0
+kind: ecu
+
+dependencies:
+  - python3
+  - python3-yaml
+  - python3-pip
+
+files:
+- brane_visualization.py
+- train.csv
+
+install:
+  - pip install pandas
+  - pip install numpy
+  - pip install matplotlib
+  - pip install seaborn
+  - pip install missingno
+  - pip install geopy
+  - pip install folium
+  #- pip install pyyaml
+
+entrypoint:
+  kind: task
+  exec: brane_visualization.py
+
+actions:
+  'visualization':
+    command:
+      args:
+        - visualization
+    input:
+    output:
+    # Define the output: a string type, discriminative by the 'output' key
+      - name: output
+        type: string
