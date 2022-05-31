@@ -318,7 +318,7 @@ def preProcessing():
     # test_df['text'] = test_df['text'].apply(lambda text: word_lemmatizer(text)) # lemmatize words
     # test_df['text'] = test_df['text'].apply(lambda text: th.cont_exp(text)) # convert i'm to i am, you're to you are, etc
 
-    df.to_csv(f"pre_processing.csv")
+    df.to_csv(f"/data/pre_processing.csv")
     return 'pre_processing'
 
 
