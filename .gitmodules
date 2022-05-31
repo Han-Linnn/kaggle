@@ -4,3 +4,9 @@
 [submodule "data_processing_sub"]
 	path = data_processing_sub
 	url = https://github.com/Han-Linnn/kaggle.git
+[submodule "visual@sub"]
+	path = visual@sub
+	url = https://github.com/Han-Linnn/kaggle.git
+[submodule "data_processing@sub"]
+	path = data_processing@sub
+	url = https://github.com/Han-Linnn/kaggle.git
