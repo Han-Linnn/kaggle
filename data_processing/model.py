@@ -3,18 +3,32 @@
 
 import os
 import pandas as pd
+import numpy as np
 
 import re
 import string
 import nltk
 from nltk.corpus import stopwords
-from nltk.stem import wordnet
+from nltk.stem import WordNetLemmatizer
+from collections import Counter
+from collections import defaultdict
 import text_hammer as th
 
-# from sklearn.feature_extraction.text import CountVectorizer
-# from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.model_selection import train_test_split
 
-# import tensorflow as tf
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers, Input, Model
+from keras.callbacks import ReduceLROnPlateau
+from keras.losses import BinaryCrossentropy
+
+import transformers
+from transformers import AutoTokenizer, DataCollatorWithPadding
+from transformers import AutoModelForSequenceClassification, TrainingArguments
+from transformers import TFBertModel, Trainer
+from tokenizers import Tokenizer
+from transformers import BertTokenizer
 
 import sys
 import yaml
@@ -24,10 +38,10 @@ warnings.filterwarnings('ignore')
 
 
 
-df = pd.read_csv(f"train.csv")
+df = pd.read_csv(f"/data/train.csv")
 # backup_df = pd.read_csv('train.csv')
 
-test_df = pd.read_csv(f"test.csv")
+test_df = pd.read_csv(f"/data/test.csv")
 # backup_test_df = pd.read_csv('test.csv')
 
 # all_stopwords=nltk.download('stopwords')
@@ -305,34 +319,91 @@ def preProcessing():
     df['text'] = df['text'].apply(lambda text: remove_emoticons(text)) # remove emoticons
     df['text'] = df['text'].apply(lambda text: remove_mentions(text)) # remove mentions
     df['text'] = df['text'].apply(lambda text: word_lemmatizer(text)) # lemmatize words
-    df['text'] = df['text'].apply(lambda text: th.cont_exp(text)) # convert i'm to i am, you're to you are, etc
+    # df['text'] = df['text'].apply(lambda text: th.cont_exp(text)) # convert i'm to i am, you're to you are, etc
+    # print(df['text'])
 
-    # test_df['text'] = test_df['text'].str.lower() # convert to lowercase
-    # test_df['text'] = test_df['text'].apply(lambda text: remove_urls(text)) # remove URLs
-    # test_df['text'] = test_df['text'].apply(lambda text: remove_HTML(text)) # remove HTML tags
-    # test_df['text'] = test_df['text'].str.translate(str.maketrans('', '', string.punctuation)) # remove punctuations
-    # test_df['text'] = test_df['text'].apply(lambda text: ' '.join([word for word in str(text).split() if word not in stopwords])) # remove stopwords
-    # test_df['text'] = test_df['text'].apply(lambda text: remove_emoji(text)) # remove emojis
-    # test_df['text'] = test_df['text'].apply(lambda text: remove_emoticons(text)) # remove emoticons
-    # test_df['text'] = test_df['text'].apply(lambda text: remove_mentions(text)) # remove mentions
-    # test_df['text'] = test_df['text'].apply(lambda text: word_lemmatizer(text)) # lemmatize words
+    test_df['text'] = test_df['text'].str.lower() # convert to lowercase
+    test_df['text'] = test_df['text'].apply(lambda text: remove_urls(text)) # remove URLs
+    test_df['text'] = test_df['text'].apply(lambda text: remove_HTML(text)) # remove HTML tags
+    test_df['text'] = test_df['text'].str.translate(str.maketrans('', '', string.punctuation)) # remove punctuations
+    test_df['text'] = test_df['text'].apply(lambda text: ' '.join([word for word in str(text).split() if word not in stopwords])) # remove stopwords
+    test_df['text'] = test_df['text'].apply(lambda text: remove_emoji(text)) # remove emojis
+    test_df['text'] = test_df['text'].apply(lambda text: remove_emoticons(text)) # remove emoticons
+    test_df['text'] = test_df['text'].apply(lambda text: remove_mentions(text)) # remove mentions
+    test_df['text'] = test_df['text'].apply(lambda text: word_lemmatizer(text)) # lemmatize words
     # test_df['text'] = test_df['text'].apply(lambda text: th.cont_exp(text)) # convert i'm to i am, you're to you are, etc
+    # print(test_df['text'])
 
-    df.to_csv(f"pre_processing.csv")
-    return 'pre_processing'
+    df.to_csv(f"/data/pre_processing.csv")
+    return 'Finished data processing!'
 
 
-# def dropArguments():
-#     df_drop = df.drop(columns = ['id', 'keyword', 'location'])
-#     df_drop.to_csv(f"/data/dropArguments.csv")
-#     return 'Successfully drop columns!'
+def dropArguments():
+    df_drop = df.drop(columns = ['id', 'keyword', 'location'])
+    df_drop.to_csv(f"/data/dropArguments.csv")
+    return 'Successfully drop columns!'
+
+def trainingModel(filepath):
+    df = pd.read_csv(f"{filepath}.csv")
+    tokenizer = AutoTokenizer.from_pretrained('bert-large-uncased')
+    bert = TFBertModel.from_pretrained('bert-large-uncased')
+
+    X_train = tokenizer(
+        text = df['text'].tolist(),
+        add_special_tokens = True,
+        max_length = 36, 
+        truncation = True,
+        padding = True, 
+        return_tensors = 'tf',
+        return_token_type_ids = False,
+        return_attention_mask = True,
+        verbose = True)
+
+    X_test = tokenizer(
+        text = test_df['text'].tolist(),
+        add_special_tokens = True,
+        max_length = 36, 
+        truncation = True,
+        padding = True, 
+        return_tensors = 'tf',
+        return_token_type_ids = False,
+        return_attention_mask = True,
+        verbose = True)
+    
+    y_train = df['target'].values
+
+    input_ids = Input(shape=(36,), dtype=tf.int32, name = 'input_ids')
+    input_mask = Input(shape=(36,), dtype=tf.int32, name = 'attention_mask')
+
+    embeddings = bert(input_ids, attention_mask = input_mask)[1]
+    layer = layers.Dropout(0.2)(embeddings)
+    layer = layers.Dense(32, activation = 'relu')(layer)
+    y = layers.Dense(1, activation = 'sigmoid')(layer)
+    
+    model = keras.Model(inputs = [input_ids, input_mask], outputs = y)
+    model.compile(
+        optimizer = keras.optimizers.Adam(learning_rate = 6e-6, epsilon = 1e-8, decay = 0.01, clipnorm = 1.0),
+        loss = BinaryCrossentropy(from_logits = True), 
+        metrics = ['accuracy']
+    )
+
+    classifier = model.fit(
+        x = {'input_ids': X_train['input_ids'],
+            'attention_mask': X_train['attention_mask']
+            },
+        y = y_train,
+        validation_split = 0.05,
+        epochs = 5,
+        batch_size = 16
+    )
 
 
 if __name__ == "__main__":
     command = sys.argv[1]
     functions = {
         "preProcessing": preProcessing,
-        # "dropArguments": dropArguments,
+        "dropArguments": dropArguments,
+        "trainingModel": trainingModel,
     }
     output = functions[command]()
     print(yaml.dump({"output": output}))

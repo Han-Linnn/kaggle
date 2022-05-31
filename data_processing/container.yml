@@ -6,6 +6,8 @@ kind: ecu
 # Define the files that are part of the package
 files:
 - data_processing.py
+- train.csv
+- test.csv
 
 # Defines the file to call whenever a function is called
 entrypoint:
@@ -24,7 +26,7 @@ install:
   # - python -m spacy download en_core_web_sm
   # - pip install beautifulsoup4
   # - pip install textblob
-  # - pip install text-hammer
+  - pip install text-hammer
   - pip install nltk
   - python3 -m nltk.downloader stopwords
   - python3 -m nltk.downloader wordnet
