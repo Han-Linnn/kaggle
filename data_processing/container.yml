@@ -1,0 +1,54 @@
+# Define the file metadata
+name: data_processing
+version: 1.0.1
+kind: ecu
+
+# Define the files that are part of the package
+files:
+- data_processing.py
+
+# Defines the file to call whenever a function is called
+entrypoint:
+  kind: task
+  exec: data_processing.py
+
+# Define the dependencies (as Ubuntu packages)
+dependencies:
+- python3
+- python3-yaml
+- python3-pip
+
+install:
+  - pip install pandas
+  # - pip install spacy
+  # - python -m spacy download en_core_web_sm
+  # - pip install beautifulsoup4
+  # - pip install textblob
+  # - pip install text-hammer
+  - pip install nltk
+  - python3 -m nltk.downloader stopwords
+  - python3 -m nltk.downloader wordnet
+  - python3 -m nltk.downloader omw-1.4
+
+
+# Define the actions
+actions:
+  'preProcessing':
+    command:
+      args:
+      - preProcessing
+    input:
+    output:
+    # Define the output: a string, identifyable by the 'output' key
+      - type: string
+        name: output
+  
+  'dropArguments':
+    command:
+      args:
+      - dropArguments
+    input:
+    output:
+    # Define the output: a string, identifyable by the 'output' key
+      - type: string
+        name: output
